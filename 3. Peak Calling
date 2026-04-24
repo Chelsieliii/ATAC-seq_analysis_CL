@@ -1,0 +1,17 @@
+#There is no input files for ATAC-seq unlike ChIP. 
+
+#!/bin/bash
+#PBS -lwalltime=09:00:00
+#PBS -lselect=1:ncpus=127:mem=900gb
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate align_env
+set -e
+cd $PBS_O_WORKDIR
+for file in $PBS_O_WORKDIR/*.nomito.bam
+do
+name=`basename $file .bl.dedup.sort.nomito.bam`
+echo $name
+macs2 callpeak -f BAMPE --nolambda -t $file -n $name  #These are just basic parameters to call peaks, I recommend looking up the documentations for macs2 and play around with the parameters as you need. 
+echo "call peaks"
+done
