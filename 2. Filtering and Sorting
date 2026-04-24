@@ -1,0 +1,19 @@
+#Initial filtering and sorting is the same as ChIP
+
+#Additional step to remove mitochondrial reads
+#!/bin/bash
+#PBS -lwalltime=30:00:00
+#PBS -lselect=1:ncpus=128:mem=900gb
+set -e
+cd "$PBS_O_WORKDIR"
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate align_env
+mkdir -p $PBS_O_WORKDIR/tmp
+for file in $PBS_O_WORKDIR/*.bl.dedup.sort.bam
+do
+name=`basename $file .bam`
+echo $name
+samtools view -h $file | grep -v chrM | samtools view -h -b - > $name.nomito.bam
+echo "remove mito reads"
+done
