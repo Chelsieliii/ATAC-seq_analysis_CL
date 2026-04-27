@@ -1,1 +1,28 @@
+#I realised when I previously did this I never really finished it. So below is just for reference, no guarantee it will work.
+#Differing from RNA-seq, ATAC is counting reads per peak (open chromatin), instead of reads per gene, which is exon-based.
+#Thus, the first step is to create a bed file that contains all ATAC-peaks called in all samples (a unified peak file), then convert this bed file into a saf file as reference.
+cat *.narrowPeak | sort -k1,1 -k2,2n | bedtools merge -i - > merged_peaks.bed
 
+#Then convert this bed file to saf. Note that the geneID and strand in the saf files are not real, just placeholders so that featurecount could read this file. 
+awk 'BEGIN{OFS="\t"; print "GeneID","Chr","Start","End","Strand"} {print "peak"NR, $1, $2, $3, "."}' merged_peaks.bed > merged_peaks.saf
+
+#Then use featurecount to generate read counts. (same as RNA-seq) (The code has changed now due to hpc update)
+#PBS -lwalltime=08:00:00
+#PBS -lselect=1:ncpus=100:mem=900gb
+
+module load subread
+
+OUTPUT_FILE=$PBS_O_WORKDIR/fc_abovctr24h_microglia.txt
+
+featureCounts -T 3 -a merged_ATAC_peaks_allreplicates.saf -o temp_feature_counts.txt /rds/general/project/diantonio/live/Chelsie/AbO_hiPSC_microglia/trimmed_ATAC/aligned_ATAC/*.bam
+
+awk 'BEGIN{OFS="\t"} NR==1 {for(i=7;i<=NF;i++) sample[i]=$i} NR>2 {printf $1; for(i=7;i<=NF;i++) printf "\t"$(i); print ""}' temp_feature_counts.txt > $OUTPUT_FILE
+
+HEADER="GeneID"
+for bam in /rds/general/project/diantonio/live/Chelsie/AbO_hiPSC_microglia/trimmed_ATAC/aligned_ATAC/*.bam; do
+    BASENAME=$(basename $bam .bam)
+    HEADER="$HEADER\t$BASENAME"
+done
+sed -i "1s/.*/$HEADER/" $OUTPUT_FILE
+
+cp * $PBS_O_WORKDIR
