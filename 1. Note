@@ -1,1 +1,11 @@
 # Initial merging of replicates, fastqc, adaptor trimming and alignment is the same process as G4_ChIP
+
+#For trimming, if after running fastqc there are overrepresented polyG sequence, do trimming again with --trim_poly_g
+#PBS -lwalltime=50:00:00
+#PBS -lselect=1:ncpus=128:mem=900gb
+module load miniforge/3
+cd $PBS_O_WORKDIR
+for name in $(cat $PBS_O_WORKDIR/samplename.txt)
+do
+/rds/general/user/xl1720/home/anaconda3/bin/fastp -i $PBS_O_WORKDIR/$name.1.fq.gz -I $PBS_O_WORKDIR/$name.2.fq.gz -o trimmed_rmpolyG_$name.1.fq.gz -O trimmed_rmpolyG_$name.2.fq.gz --detect_adapter_for_pe --trim_poly_g -l 20
+done
