@@ -1,6 +1,6 @@
 #Initial filtering and sorting is the same as ChIP
 
-#Additional step to remove mitochondrial reads
+#Additional step to remove mitochondrial reads and index the file
 #!/bin/bash
 #PBS -lwalltime=30:00:00
 #PBS -lselect=1:ncpus=128:mem=900gb
@@ -16,4 +16,6 @@ name=`basename $file .bam`
 echo $name
 samtools view -h $file | grep -v chrM | samtools view -h -b - > $name.nomito.bam
 echo "remove mito reads"
+samtools index "$name.nomito.bam"
+echo "Indexed $name.nomito.bam"
 done
