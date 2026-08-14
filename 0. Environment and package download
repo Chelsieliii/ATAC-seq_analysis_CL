@@ -1,0 +1,12 @@
+#Create atacseqqc environment and download atacseqqc tool
+conda create -n atacseqqc -c conda-forge -c bioconda bioconductor-atacseqqc -y
+
+#install some tools into this environment
+conda install -c conda-forge -c bioconda bowtie2 homer subread multiqc -y
+#check if they were installed successfully
+bowtie2 --version
+
+#install some packages as well
+conda install -c conda-forge -c bioconda bioconductor-diffbind bioconductor-edger bioconductor-deseq2 -y
+#check if they were installed successfully
+R -e "library(DiffBind); packageVersion('DiffBind')"
