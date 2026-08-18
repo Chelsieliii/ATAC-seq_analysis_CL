@@ -13,5 +13,5 @@ awk 'BEGIN{OFS="\t"} $3=="transcript" {if ($7=="+") print $1,$4-1,$4; else print
 
 #Download ENCODE atac-seq analysis pipeline
 git clone https://github.com/ENCODE-DCC/atac-seq-pipeline.git
-#Install the Conda environment needed
+#Install the Conda environment needed (env name is encd-atac-spp)
 bash scripts/install_conda_env.sh
