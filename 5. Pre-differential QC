@@ -1,0 +1,17 @@
+#TSS Enrichment
+#Generate a bed file for hg38 TSS regions from gtf file. 
+awk 'BEGIN{OFS="\t"} $3=="transcript" {if ($7=="+") print $1,$4-1,$4; else print $1,$5-1,$5}' hg38.refGene.gtf | sort -k1,1 -k2,2n | uniq > hg38_TSS.bed
+#Note: check the gtf file beforehand to make sure if column$3 is annotation, column$7 is strand direction, $4 and $5 is peak location. If not, need to modify the column number. 
+#We ask the start of + strand of transcript to be recorded ($4-1, $4) and end of - strand of transcript to be recorded, as they correspond to respective TSS location. 
+#start --------------------> end
+ ^
+ TSS
+#start <-------------------- end
+                          ^
+                         TSS
+#use uniq as there are many isoform transcripts that have the same TSS, and if we include them all that will affect TSS enrichment score. 
+
+#Download ENCODE atac-seq analysis pipeline
+git clone https://github.com/ENCODE-DCC/atac-seq-pipeline.git
+#Install the Conda environment needed
+bash scripts/install_conda_env.sh
