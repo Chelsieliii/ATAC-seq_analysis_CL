@@ -93,3 +93,13 @@ def make_tss_plot(bam_file, tss, prefix, chromsizes,
     bam_array = bam.array(tss_ext, bins=bins, shift_width=-read_len/2,
                           processes=processes, stranded=True)  #shift_width = read_len/2 because ATAC-seq reads do not correspond to Tn5 cut site, we need to shift the read to centre it. read_len/2 is kinda universal, as we want to centre the read which is at half of the read length instead of at the ends of the read. 
     #processes defines how many computer power is used. stranded = True means we consider strand information. 
+# Normalization (Greenleaf style): Find the avg height at the end bins and take fold change over that
+    if greenleaf_norm:
+        # Use enough bins to cover 100 bp on either end
+        num_edge_bins = int(100/(2*bp_edge/bins)) #Here we are calculating how many bins are there in 100 bp. exntension size*2 as total exntension, divided by bin number -> bin length. 100/bin length gives how many bins are there in 100 bp. We take 100 bp at both ends to estimate background. 
+        bin_means = bam_array.mean(axis=0)  #This calculates average ATAC signal across the TSS region. bam_array essentially is a matrix, and axis=0 instructs it to average across the row. 
+        avg_noise = (sum(bin_means[:num_edge_bins]) +
+                     sum(bin_means[-num_edge_bins:]))/(2*num_edge_bins)  #This calculates the average background noise across two 100bp at each end of the TSS. 
+        bam_array /= avg_noise  #This is essentially bam_array = bam_array / avg_noise, calculating fold change of TSS signal over background. -> TSS enrichment
+    else:
+        bam_array /= bam.mapped_read_count() / 1e6  #We can also use another type of normalisation which divide bam.array by total mapped reads/1e6, this is a normalisation of all signals against the sequencing depth. Which method to use depends on what question needs to be answered. 
