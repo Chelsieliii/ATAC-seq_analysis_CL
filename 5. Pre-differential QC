@@ -13,5 +13,83 @@ awk 'BEGIN{OFS="\t"} $3=="transcript" {if ($7=="+") print $1,$4-1,$4; else print
 
 #Download ENCODE atac-seq analysis pipeline
 git clone https://github.com/ENCODE-DCC/atac-seq-pipeline.git
-#Install the Conda environment needed (env name is encd-atac-spp)
+#Install the Conda environment needed (env name is encd-atac-xxx -> specific env name can be checked using conda env list)
 bash scripts/install_conda_env.sh
+#Install encode hg38 genome
+bash scripts/download_genome_data.sh hg38 /directory/to/save/encode_hg38
+#You will see a tsv (tab-separated vaules) file that contains features of files (e.g. tss, blacklist etc.) and the path to corresponding file. Use following code to search for file needed:
+grep -i tss /path/to/encode_hg38/hg38.tsv  #Take finding TSS (transcription start site) as example, grep means search, -i ignore captical. This code asks to search for "tss" in the tsv file which will output the path to the tss file. 
+
+#Run TSS enrichment script from ENCODE (for one file)
+python2 $(which encode_task_tss_enrich.py) --read-len 150 --nodup-bam CL1_1.bl.dedup.sort.nomito.bam --chrsz /path/to/hg38.chrsz --tss /path/to/hg38.tss.bed
+
+
+#Just for information, breakdown of the TSS enrichment code inside the ENCODE script:
+#!/usr/bin/env python
+import matplotlib as mpl
+mpl.use('Agg')
+import pybedtools
+import numpy as np
+from matplotlib import mlab
+from matplotlib import pyplot as plt
+import sys
+import os
+import argparse
+from encode_lib_common import (
+    strip_ext_bam, ls_l, log, logging, mkdir_p, rm_f)
+from encode_lib_genomic import (
+    remove_read_group, samtools_index)
+import metaseq
+import warnings
+warnings.filterwarnings("ignore")
+
+#This part instructs python how to read the input from user
+def parse_arguments():
+    parser = argparse.ArgumentParser(prog='ENCODE TSS enrichment.')  #Give programme a name in case there is error message etc. argparse is a python model that handles command line arguments.
+    parser.add_argument('--read-len-log', type=str,
+                        help='Read length log file (from aligner task).')  #handles a log file for read length. 
+    parser.add_argument('--read-len', type=int,
+                        help='Read length (integer). This is ignored if '
+                             '--read-len-log is defined.')  #handles input of --read-len as an integer. The user can either input log file or input read length itself. 
+    parser.add_argument('--nodup-bam', type=str,
+                        help='Raw BAM file (from task filter).')  #path to bam file
+    parser.add_argument('--chrsz', type=str,
+                        help='2-col chromosome sizes file.') #chromosome size file input
+    parser.add_argument('--tss', type=str, help='TSS definition bed file.') #input tss info as a bed file
+    parser.add_argument('--out-dir', default='', type=str,
+                        help='Output directory.') 
+    parser.add_argument('--log-level', default='INFO', help='Log level',
+                        choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING',
+                                 'CRITICAL', 'ERROR', 'CRITICAL'])  #This defines what to output in the log of this run. Default is "INFO".
+    args = parser.parse_args()  #put all input commands into args for following use. E.g. args.tss corresponds to the tss file input
+
+    if args.read_len_log is None and args.read_len is None:
+        raise ValueError('Either --read-len-log or --read-len must be defined.') #This requires the read length to be input by user. 
+
+    log.setLevel(args.log_level)
+    log.info(sys.argv) #Here it generates the log report for this function. 
+    return args
+
+def make_tss_plot(bam_file, tss, prefix, chromsizes,
+                  read_len, bins=400, bp_edge=2000,
+                  processes=8, greenleaf_norm=True):
+    '''
+    Take bootstraps, generate tss plots, and get a mean and
+    standard deviation on the plot. Produces 2 plots. One is the
+    aggregation plot alone, while the other also shows the signal
+    at each TSS ordered by strength.
+    '''
+    logging.info('Generating tss plot...')
+    tss_plot_file = '{0}.tss_enrich.png'.format(prefix)
+    tss_plot_large_file = '{0}.large_tss_enrich.png'.format(prefix)
+    tss_log_file = '{0}.tss_enrich.qc'.format(prefix) #These three lines are setting the file name for output. 
+# Load the TSS file
+    tss = pybedtools.BedTool(tss) #using pybedtools to load the bed file as python object. 
+    tss_ext = tss.slop(b=bp_edge, g=chromsizes)  #slop expands the genomic interval. If bp_edge = 2000, we expand the TSS area we look at to +- 2000bp. so we are looking around TSS region. The g argument inputs a chromosome size file to tell the expansion not to exceed chromosome size. 
+# Load the bam file
+    # Need to shift reads and just get ends, just load bed file?
+    bam = metaseq.genomic_signal(bam_file, 'bam')
+# Shift to center the read on the cut site. Here we use bam.array which calculates the signal at TSS in bins. tss_ext is the extended TSS regions which just obtained. bins segment the regions into bins. 
+    bam_array = bam.array(tss_ext, bins=bins, shift_width=-read_len/2,
+                          processes=processes, stranded=True)  #shift_width = read_len/2 because ATAC-seq reads do not correspond to Tn5 cut site, we need to shift the read to centre it. read_len/2 is kinda universal, as we want to centre the read which is at half of the read length instead of at the ends of the read. 
+    #processes defines how many computer power is used. stranded = True means we consider strand information. 
