@@ -19,3 +19,6 @@ echo "remove mito reads"
 samtools index "$name.nomito.bam"
 echo "Indexed $name.nomito.bam"
 done
+
+#Mapq filtering to remove low confidence, multi-mapped, poor alignment reads (if needed) This code set the threshold to 30. can be changed if needed. 
+samtools view -b -q 30 sample.nomito.bam > sample.nomito.mapq30.bam 
