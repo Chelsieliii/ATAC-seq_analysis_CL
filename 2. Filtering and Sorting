@@ -22,3 +22,21 @@ done
 
 #Mapq filtering to remove low confidence, multi-mapped, poor alignment reads (if needed) This code set the threshold to 30. can be changed if needed. 
 samtools view -b -q 30 sample.nomito.bam > sample.nomito.mapq30.bam 
+#Create a job to loop through all files
+#!/bin/bash
+#PBS -lwalltime=24:00:00
+#PBS -lselect=1:ncpus=128:mem=900gb
+set -e
+cd "$PBS_O_WORKDIR"
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate align_env
+for file in $PBS_O_WORKDIR/*.bl.dedup.sort.nomito.bam
+do
+name=`basename $file .bam`
+echo $name
+samtools view -b -q 30 $file > $name.mapq30.bam 
+echo "mapq filtered"
+samtools index "$name.mapq30.bam"
+echo "Indexed $name.mapq30.bam"
+done
