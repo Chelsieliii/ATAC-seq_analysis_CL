@@ -77,3 +77,94 @@ def make_tss_plot(bam_file, tss, prefix, chromsizes,
         bam_array /= avg_noise  #This is essentially bam_array = bam_array / avg_noise, calculating fold change of TSS signal over background. -> TSS enrichment
     else:
         bam_array /= bam.mapped_read_count() / 1e6  #We can also use another type of normalisation which divide bam.array by total mapped reads/1e6, this is a normalisation of all signals against the sequencing depth. Which method to use depends on what question needs to be answered. 
+# Generate a line plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    x = np.linspace(-bp_edge, bp_edge, bins)
+
+    ax.plot(x, bam_array.mean(axis=0), color='r', label='Mean')
+    ax.axvline(0, linestyle=':', color='k')
+
+    # Note the middle high point (TSS)
+    tss_point_val = max(bam_array.mean(axis=0)) #This line takes the highest point enrichment from -2000 to 2000 around the TSS and take this value as the TSS enrichment score. 
+
+    # write tss_point_val to file
+    with open(tss_log_file, 'w') as fp:
+        fp.write(str(tss_point_val))
+
+    ax.set_xlabel('Distance from TSS (bp)')
+    if greenleaf_norm:
+        ax.set_ylabel('TSS Enrichment')
+    else:
+        ax.set_ylabel('Average read coverage (per million mapped reads)')
+    ax.legend(loc='best')
+
+    fig.savefig(tss_plot_file)
+
+  # Print a more complicated plot with lots of info
+    # Find a safe upper percentile - we can't use X if the Xth percentile is 0
+    upper_prct = 99  #Use 99 percentile instead of 100 to avoid extreme values biasing the colour scale. 
+    if mlab.prctile(bam_array.ravel(), upper_prct) == 0.0:  #Check if 99th percentile is 0. If use 0 as upper limit the colour scale wouldn't work. 
+        upper_prct = 100.0  #If 99 percentile is 0, use 100th percentile as upper-percentile.
+
+    plt.rcParams['font.size'] = 8
+    fig = metaseq.plotutils.imshow(bam_array,  #imshow = image show, which converts the array into image
+                                   x=x,  #defines the x axis (x was defined before)
+                                   figsize=(5, 10),
+                                   vmin=5, vmax=upper_prct, percentile=True, #this set the upper and lower limit of colour scale
+                                   line_kwargs=dict(color='k', label='All'),  
+                                   fill_kwargs=dict(color='k', alpha=0.3),
+                                   sort_by=bam_array.mean(axis=1)) #sort all signals by mean of the signal across each TSS (axis=1) takes mean of each TSS. 
+
+    # And save the file
+    fig.savefig(tss_plot_large_file)
+
+    return tss_plot_file, tss_plot_large_file, tss_log_file
+
+#Main workflow containing all previously defined functions. 
+def main():
+    # read params by calling the parse_arguments() called. 
+    args = parse_arguments() 
+
+    CHROMSIZES = args.chrsz
+    TSS = args.tss if args.tss and os.path.basename(args.tss) != 'null' else ''  #If arg.tss file exists and the filename is not null, use the file, otherwise use "" (empty string)
+    FINAL_BAM = args.nodup_bam  #get the bam files
+    OUTPUT_PREFIX = os.path.join(
+        args.out_dir,
+        os.path.basename(strip_ext_bam(FINAL_BAM))) #Get the basename of output files. 
+    samtools_index(FINAL_BAM)  # index the bam file
+    RG_FREE_FINAL_BAM = remove_read_group(FINAL_BAM) #temporarily remove the read group
+
+    log.info('Initializing and making output directory...')
+    mkdir_p(args.out_dir) #create an output directory if there isn't any
+
+    # Also get read length
+    # read_len = get_read_length(FASTQ)
+    if args.read_len_log:  #if read length is from a file
+        with open(args.read_len_log, 'r') as fp:
+            read_len = int(fp.read().strip())
+    elif args.read_len:  #if read length is input
+        read_len = args.read_len
+    else: #if no read length is available. 
+        read_len = None
+
+    # Enrichments: V plot for enrichment
+    # Use final to avoid duplicates
+    tss_plot, tss_large_plot, tss_enrich_qc = \
+        make_tss_plot(FINAL_BAM,  #calls make_tss_plot function to make the final plots
+                      TSS,
+                      OUTPUT_PREFIX,
+                      CHROMSIZES,
+                      read_len)
+
+    # remove temporary files
+    rm_f(RG_FREE_FINAL_BAM)
+
+    log.info('List all files in output directory...')
+    ls_l(args.out_dir)
+
+    log.info('All done.')
+
+
+if __name__ == '__main__':
+    main()
