@@ -42,5 +42,152 @@ python2 $(which encode_task_tss_enrich.py) --read-len 150 --nodup-bam $file --ch
 echo "TSS enrichment generated for $name"
 done
 
-#fragment size distribution
 
+#fragment size distribution
+#Download ATACseqQC package for this. After activateing miniforge3:
+conda create -n atacseqqc -c conda-forge -c bioconda bioconductor-atacseqqc -y
+#Note that this process takes a very long time so consider running a job.
+
+#Construct an R script for calculating and plotting fragment size distribution
+nano atacseqqc_fragment_size.R  #Create an R script file (for single file)
+library(ATACseqQC)  #Use library downloaded
+setwd(Sys.getenv("PBS_O_WORKDIR"))
+bam_files <- c(
+    "rg_added_aligned_trimmed_rmpolyG_A_124_138_ATAC_merged_L1.bl.dedup.sort.nomito.mapq30.bam"
+)
+if (length(bam_files) == 0) {
+    stop("No .nomito.bam files found in the current directory.")
+}
+bam_labels <- basename(bam_files)
+bam_labels <- sub("^rg_added_aligned_trimmed_rmpolyG_", "", bam_labels)
+bam_labels <- sub("\\.bl\\.dedup\\.sort\\.nomito\\.bam$", "", bam_labels)
+print(bam_files)
+print(bam_labels)
+frag_data <- fragSizeDist(
+    bamFiles = bam_files,
+    bamFiles.labels = bam_labels
+)  #Use the function available in library to generate fragment size distribution
+str(frag_data)
+saveRDS(frag_data, file = "fragment_size_data.rds")
+cat("\nFragment size analysis completed.\n")
+
+#To loop through all files
+library(ATACseqQC)
+setwd(Sys.getenv("PBS_O_WORKDIR"))
+bam_files <- list.files(
+    path = ".",  #Current directory
+    pattern = "\\.nomito\\.mapq30\\.bam$",  #Find files with this ending pattern
+    full.names = TRUE
+)  
+if (length(bam_files) == 0) {
+    stop("No .nomito.bam files found in the current directory.")
+}
+bam_labels <- basename(bam_files)
+bam_labels <- sub("^rg_added_aligned_trimmed_rmpolyG_", "", bam_labels)  #Since the prefix of file name is too long, replace the prefix with blank and output to "bam_labels"
+bam_labels <- sub("\\.bl\\.dedup\\.sort\\.nomito\\.bam$", "", bam_labels)  #Replace the long ending of the file with blank as well and output to "bam_labels"
+print(bam_files)
+print(bam_labels)
+frag_data <- fragSizeDist(
+    bamFiles = bam_files,
+    bamFiles.labels = bam_labels
+)
+str(frag_data)
+saveRDS(frag_data, file = "fragment_size_data.rds")
+cat("\nFragment size analysis completed.\n")
+
+#After constructing the Rscript, create a job to run the Rscript. 
+#!/bin/bash
+#PBS -lwalltime=24:00:00
+#PBS -lselect=1:ncpus=128:mem=900gb
+set -e
+cd "$PBS_O_WORKDIR"
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate atacseqqc
+
+Rscript atacseqqc_fragment_allfile.R
+
+
+#FRiP score (need the bam file, indexed bai file, and the called narrowPeak file)
+#For single file
+#!/bin/bash
+#PBS -lwalltime=5:00:00
+#PBS -lselect=1:ncpus=60:mem=400gb
+set -e
+cd "$PBS_O_WORKDIR"
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate align_env
+BAM="/rds/general/project/diantonio/live/Chelsie/ATAC_seq_H2O2_D12_Rhi/All_ATAC/trimmed_removepolyG/aligned/rg_added_aligned_trimmed_rmpolyG_A_127_ATAC_EKDL260002768-1A_23GKLJLT4_L1.bl.dedup.sort.nomito.mapq30.bam"
+PEAKS="/rds/general/project/diantonio/live/Chelsie/ATAC_seq_H2O2_D12_Rhi/All_ATAC/call_peak/mapq30_rg_added_aligned_trimmed_rmpolyG_A_127_ATAC_EKDL260002768-1A_23GKLJLT4_L1_peaks.narrowPeak"
+SAMPLE=$(basename "$BAM" .bl.dedup.sort.nomito.mapq30.bam)
+echo "Processing ${SAMPLE}..."
+
+#Keep properly paired reads
+samtools view -b -f 2 "$BAM" > "${SAMPLE}.properpair.bam"
+#Name sort the bam file first so that paired end reads appear next to each other (so that they are considered properly paired and not omitted in calculation)
+samtools sort -n -o "${SAMPLE}.properpair.namesort.bam" "${SAMPLE}.properpair.bam"
+echo "name sorted"
+#Convert paired reads to BEDPE
+bedtools bamtobed -bedpe -i "${SAMPLE}.properpair.namesort.bam" > "${SAMPLE}.bedpe"
+#Convert BEDPE to fragment BED (Since we did PE ATAC-seq, it is more biologically relevant to cound fragments from both R1 and R2 instead of just counting reads)
+awk 'BEGIN{OFS="\t"} $1==$4 {print $1,$2,$6}' "${SAMPLE}.bedpe" > "${SAMPLE}.fragments.bed"
+#Count total fragments 
+TOTAL=$(wc -l < "${SAMPLE}.fragments.bed")
+
+#To loop through all files
+#!/bin/bash
+#PBS -lwalltime=24:00:00
+#PBS -lselect=1:ncpus=128:mem=900gb
+set -e
+cd "$PBS_O_WORKDIR"
+module load miniforge/3
+eval "$(/rds/general/user/xl1720/home/miniforge3/bin/conda shell.bash hook)"
+conda activate align_env
+BAM_DIR="/rds/general/project/diantonio/live/Chelsie/ATAC_seq_H2O2_D12_Rhi/All_ATAC/trimmed_removepolyG/aligned"
+PEAK_DIR="/rds/general/project/diantonio/live/Chelsie/ATAC_seq_H2O2_D12_Rhi/All_ATAC/call_peak"
+
+for BAM in "${BAM_DIR}"/*.dedup.sort.nomito.mapq30.bam
+do
+SAMPLE=$(basename "$BAM" .bl.dedup.sort.nomito.mapq30.bam)
+PEAKS="${PEAK_DIR}/mapq30_${SAMPLE}_peaks.narrowPeak"
+
+echo "Processing ${SAMPLE}..."
+echo "BAM: ${BAM}"
+echo "PEAKS: ${PEAKS}"
+if [ ! -f "$PEAKS" ]; then
+    echo "WARNING: Peak file not found for ${SAMPLE}"
+    echo "Expected: ${PEAKS}"
+    echo "Skipping ${SAMPLE}..."
+    continue
+fi
+
+#Keep properly paired reads
+samtools view -b -f 2 "$BAM" > "${SAMPLE}.properpair.bam"
+#Name sort the bam file first so that paired end reads appear next to each other
+samtools sort -n -o "${SAMPLE}.properpair.namesort.bam" "${SAMPLE}.properpair.bam"
+echo "name sorted"
+#Convert paired reads to BEDPE
+bedtools bamtobed -bedpe -i "${SAMPLE}.properpair.namesort.bam" > "${SAMPLE}.bedpe"
+#Convert BEDPE to fragment BED
+awk 'BEGIN{OFS="\t"} $1==$4 {print $1,$2,$6}' "${SAMPLE}.bedpe" > "${SAMPLE}.fragments.bed"
+#Count total fragments
+TOTAL=$(wc -l < "${SAMPLE}.fragments.bed")
+#Fragments that overlap with peaks
+bedtools intersect -u -a "${SAMPLE}.fragments.bed" -b "$PEAKS" > "${SAMPLE}.fragments.inpeaks.bed"
+#Count fragments in peaks
+IN_PEAKS=$(wc -l < "${SAMPLE}.fragments.inpeaks.bed")
+#Calculate FRiP
+FRIP=$(awk -v a="$IN_PEAKS" -v b="$TOTAL" 'BEGIN {printf "%.4f", a/b}') #Here it does calculation, %.4f tells how many decimal places to output. 
+
+echo "Sample: $SAMPLE"
+echo "Total fragments: $TOTAL"
+echo "Fragments in peaks: $IN_PEAKS"
+echo "FRiP: $FRIP"
+#Remove process files
+rm "${SAMPLE}.properpair.bam"
+rm "${SAMPLE}.properpair.namesort.bam"
+rm "${SAMPLE}.bedpe"
+rm "${SAMPLE}.fragments.bed"
+rm "${SAMPLE}.fragments.inpeaks.bed"
+done
