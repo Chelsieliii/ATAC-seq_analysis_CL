@@ -1,7 +1,9 @@
 #I realised when I previously did this I never really finished it. So below is just for reference, no guarantee it will work.
 #Differing from RNA-seq, ATAC is counting reads per peak (open chromatin), instead of reads per gene, which is exon-based.
-#Thus, the first step is to create a bed file that contains all ATAC-peaks called in all samples (a unified peak file), then convert this bed file into a saf file as reference.
-cat *.narrowPeak | sort -k1,1 -k2,2n | bedtools merge -i - > merged_peaks.bed
+#After peak calling, use bedtools multiinter to generate consensus peak files for each condition, with peaks that appear in at least 2 replicates. Then merge. 
+#Create a bed file that contains all consensus peaks from two files (a unified peak file). 
+cat consensus_peak_1.narrowPeak consensus_peak_2.narrowPeak | sort -k1,1 -k2,2n > merged_consensus_peaks.bed
+#Here there might be overlapping peaks but we are not merging yet. Merging the peaks with only partial overlap might change the biological boundaries of these peaks.
 
 #Then convert this bed file to saf. Note that the geneID and strand in the saf files are not real, just placeholders so that featurecount could read this file. 
 awk 'BEGIN{OFS="\t"; print "GeneID","Chr","Start","End","Strand"} {print "peak"NR, $1, $2, $3, "."}' merged_peaks.bed > merged_peaks.saf
