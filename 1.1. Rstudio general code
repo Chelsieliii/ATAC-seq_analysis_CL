@@ -1,0 +1,25 @@
+#Check if R is connected
+R.version.string
+
+#Install packages from CRAN
+install.packages(c(
+    "ggplot2",
+    "dplyr",
+    "tidyr",
+    "readr",
+    "pheatmap"
+))
+#Install deseq2
+install.packages("BiocManager")
+BiocManager::install("DESeq2")
+#Check package version
+packageVersion("DESeq2")
+#Other packages
+BiocManager::install(c(
+    "DESeq2",
+    "DiffBind",
+    "GenomicRanges",
+    "GenomicFeatures",
+    "rtracklayer",
+    "Rsamtools"
+))
