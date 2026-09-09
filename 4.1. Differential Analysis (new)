@@ -1,0 +1,11 @@
+#Generate consensus peak file, notice difference between merge or unmerged (used merged in this case)
+
+#Convert bed file to gtf file for featurecount to read the files. Add placeholder columns to bed files. 
+awk 'BEGIN{OFS="\t"} {
+     print $1, "ATAC", "peak", $2+1, $3, ".", ".", ".", "gene_id \"peak_"NR"\"; transcript_id \"peak_"NR"\";"
+ }' combined_ctr_sen_consensus_peaks_merged.bed > combined_ctr_sen_consensus_peaks_merged.gtf
+#Note that $2+1 because bed file is 0-based while gtf file is 1-based, thus need to adjust the coordinate. 
+
+#Check number of properly paired and mapped fragments from filtered bam file
+samtools view -c -f 2 -F 4 filename.bl.dedup.sort.nomito.mapq30.bam  #-c count alignment, -f 2 properly paired, -F 4 exclude unmapped reads
+#Then divide the result by 2 as ATAC-seq here is paired-end.
