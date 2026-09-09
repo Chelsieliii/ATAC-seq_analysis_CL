@@ -9,3 +9,11 @@ awk 'BEGIN{OFS="\t"} {
 #Check number of properly paired and mapped fragments from filtered bam file
 samtools view -c -f 2 -F 4 filename.bl.dedup.sort.nomito.mapq30.bam  #-c count alignment, -f 2 properly paired, -F 4 exclude unmapped reads
 #Then divide the result by 2 as ATAC-seq here is paired-end.
+
+
+#The following is conducted in Rstudio.
+#Download all libraries needed (See general code)
+#Set work directory. 
+library(DESeq2)
+library(ggplot2)
+library(pheatmap)
