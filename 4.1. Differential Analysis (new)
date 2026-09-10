@@ -46,4 +46,24 @@ res <- res[ order(res$padj, na.last = TRUE), ]
 #Save to current directory
 write.csv(as.data.frame(res), file = "DESeq2_SEN_vs_CTR_ATAC_all_nonshrink.csv")
 
-#Still need to reconnect back the coordinate info so we can annotate. 
+#Since we removed the columns with coordinates earlier for deseq2, not put the columns back.
+fc <- read.delim(
+    "ATAC_peak_counts.txt",
+    header = TRUE,
+    row.names = 1,
+    check.names = FALSE,
+    comment.char = "#"
+)
+peak_annotation <- fc[, c("Chr", "Start", "End", "Strand", "Length")]
+res_df <- as.data.frame(res)
+res_df$peak_id <- rownames(res_df) #Get the peak id from res. 
+res_df <- cbind(
+    peak_annotation[res_df$peak_id, ],
+    res_df
+)  #cbind function means column bind. We combine columns in peak annotation by peak id in res_df$peak_id. 
+#Save the results
+write.csv(
+    res_df,
+    file = "DESeq2_SEN_vs_CTR_withcoordinate.csv",
+    row.names = FALSE
+)
