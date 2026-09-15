@@ -1,0 +1,26 @@
+#After differential analysis
+#Volcano plot
+volcano_data <- as.data.frame(res)
+volcano_data$significant <- "Not significant"  #Add a new column significant, and assign all as not significant
+volcano_data$significant[ !is.na(volcano_data$padj) & volcano_data$padj < 0.05 & volcano_data$log2FoldChange >= 1 ] <- "Increased"
+volcano_data$significant[ !is.na(volcano_data$padj) & volcano_data$padj < 0.05 & volcano_data$log2FoldChange <= -1 ] <- "Decreased"
+p <- ggplot( volcano_data, aes( x = log2FoldChange, y = -log10(padj), colour = significant ) ) + geom_point(alpha = 0.6) + theme_classic() + labs( title = "ATAC-seq differential accessibility", x = "log2 fold change", y = "-log10 adjusted p-value" ) + geom_vline( xintercept = c(-1, 1), linetype = "dashed" ) + geom_hline( yintercept = -log10(0.05), linetype = "dashed" )
+ggsave("Volcano_plot.png", p, width = 7, height = 6, dpi = 300 )
+
+#There might be a warning message saying that some lines are dropped in the plot. Check if this is due to log2FC or padj being NA.
+sum(is.na(volcano_data$log2FoldChange))
+sum(is.na(volcano_data$padj))
+
+#PCA plot
+library(ggrepel)
+vsd <- vst(dds)
+pca_data <- plotPCA(vsd, intgroup = "condition", returnData = TRUE)
+percentVar <- round(100 * attr(pca_data, "percentVar"))
+q <- ggplot(pca_data, aes(x = PC1, y = PC2, color = condition)) +
+     geom_point(size = 3) +
+     geom_text_repel(aes(label = name), size = 3, show.legend = FALSE) +
+     xlab(paste0("PC1: ", percentVar[1], "% variance")) +
+     ylab(paste0("PC2: ", percentVar[2], "% variance")) +
+     coord_fixed() +
+     theme_bw()
+ggsave("PCA_plot.png", plot = q, width = 6, height = 5.33, dpi = 300)
