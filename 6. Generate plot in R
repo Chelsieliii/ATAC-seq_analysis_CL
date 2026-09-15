@@ -24,3 +24,34 @@ q <- ggplot(pca_data, aes(x = PC1, y = PC2, color = condition)) +
      coord_fixed() +
      theme_bw()
 ggsave("PCA_plot.png", plot = q, width = 6, height = 5.33, dpi = 300)
+
+
+#Sample correlation heatmap
+vsd<-vst(dds, blind=FALSE)
+cor_matrix<-cor(assay(vsd))
+write.csv( cor_matrix, "Sample_correlation_matrix.csv" )
+my_breaks <- seq(0, 1, length.out = 101) #Define scale of the colour scale
+png("Sample_correlation_heatmap_Adjustscale.png", width = 1800, height = 1600, res = 300 )
+pheatmap(
+               cor_matrix,
+              main = "ATAC-seq sample correlation",
+              clustering_distance_rows = as.dist(1 - cor_matrix),
+              clustering_distance_cols = as.dist(1 - cor_matrix),
+              breaks = my_breaks
+          )
+dev.off()
+#To generate heatmap without clustering
+sample_order_heatmap <- c("A_127", "A_128", "A_129", "A_124_138", "A_136","A_137") #define order
+new_name_heatmap <- c("CTR1 (A_127)", "CTR2 (A_128)", "CTR3 (A_129)", "SEN1 (A_124_138)", "SEN2 (A_136)","SEN3 (A_137)") #Change name of the samples if needed
+cor_matrix_ordered <- cor_matrix[sample_order_heatmap, sample_order_heatmap]
+rownames(cor_matrix_ordered) <- new_name_heatmap
+colnames(cor_matrix_ordered) <- new_name_heatmap
+png("Sample_correlation_heatmap_adjustscale.png", width = 1800, height = 1600, res = 300)
+pheatmap(
+     cor_matrix_ordered,
+     main = "ATAC-seq sample correlation",
+     cluster_rows = FALSE,
+     cluster_cols = FALSE,
+     breaks = my_breaks
+ )
+dev.off()
