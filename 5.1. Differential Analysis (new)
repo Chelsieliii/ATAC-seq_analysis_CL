@@ -67,3 +67,7 @@ write.csv(
     file = "DESeq2_SEN_vs_CTR_withcoordinate.csv",
     row.names = FALSE
 )
+
+#Filter for significant peaks (padj<0.05, log2FC>=1) and save the significant list. 
+sig <- res[ !is.na(res$padj) & res$padj < 0.05 & abs(res$log2FoldChange) >= 1, ]
+write.csv( as.data.frame(sig), "Differential_peaks_FDR0.05_log2FC1.csv" ) 
